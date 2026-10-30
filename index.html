@@ -1,0 +1,152 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>VR 투어</title>
+<style>html,body{margin:0;height:100%;background:#000;color:#eee;font-family:system-ui,sans-serif;overflow:hidden}
+#setup{position:fixed;inset:0;padding:20px 20px 140px;overflow:auto;background:#111}#setup h1{font-size:20px}label{display:block;margin:14px 0 4px;font-size:14px}input[type=range]{width:100%}
+button{font-size:18px;padding:14px 20px;border-radius:10px;border:0;background:#c9a063;color:#111;margin-top:18px;width:100%}
+#stage{position:fixed;display:none}canvas{width:100%;height:100%;display:block;touch-action:none}.hh{position:absolute;top:0;width:50%;text-align:center;white-space:pre-line}#hud{position:absolute;left:0;right:0;top:60%;font-size:20px;font-weight:700;line-height:1.35;color:#fff;pointer-events:none;text-shadow:0 0 5px #000,0 0 3px #000}</style></head><body>
+<div id="setup"><h1>케이디자인랩 VR 투어</h1><p>폰을 가로로 눕혀 헤드셋에 끼우세요. 화면 터치 또는 아래를 2초 보면 다음 지점으로 이동합니다.</p>
+<label>렌즈 보정 k1 <span id="v1"></span></label><input id="k1" type="range" min="0" max="0.6" step="0.01" value="0.06">
+<label>렌즈 보정 k2 <span id="v2"></span></label><input id="k2" type="range" min="0" max="0.4" step="0.01" value="0">
+<label>입체감 세기(너무 깊으면 낮추기) <span id="v5"></span></label><input id="dpth" type="range" min="0" max="1" step="0.05" value="0.8">
+<label>가장자리 압축(창 가깝게·시야 넓게) <span id="v6"></span></label><input id="prj" type="range" min="0" max="1" step="0.05" value="0.5">
+<label>시야각(세로) <span id="v3"></span>°</label><input id="fv" type="range" min="55" max="120" step="1" value="80">
+<label>두 화면 가운데로 모으기(초점·겹침이 안 맞으면 조절) <span id="v4"></span></label><input id="ox" type="range" min="-0.1" max="0.5" step="0.01" value="0.16">
+<label><input id="fl" type="checkbox"> 화면 방향 반대로(좌우가 뒤집혀 있으면 체크)</label><button id="go">VR 시작</button></div>
+<div id="stage"><canvas id="cv"></canvas><div id="hud"><span class="hh" id="h1"></span><span class="hh" id="h2"></span></div></div>
+<script>
+const PTS=[{"id": "p01", "name": "현관 p01", "xy": [-0.59, 6.44], "L": "img/p01_T0_day.jpg", "R": "img/p01_T0_day_R.jpg"}, {"id": "p02", "name": "복도 p02", "xy": [-0.75, 4.34], "L": "img/p02_T0_day.jpg", "R": "img/p02_T0_day_R.jpg"}, {"id": "p03", "name": "복도 끝 p03", "xy": [-0.2, 2.49], "L": "img/p03_T0_day.jpg", "R": "img/p03_T0_day_R.jpg"}, {"id": "p04", "name": "거실 입구 p04", "xy": [-4.34, 4.2], "L": "img/p04_T0_day.jpg", "R": "img/p04_T0_day_R.jpg"}, {"id": "p05", "name": "공용욕실 p05", "xy": [-2.51, 6.05], "L": "img/p05_T0_day.jpg", "R": "img/p05_T0_day_R.jpg"}, {"id": "p06", "name": "실외기실 p06", "xy": [-2.18, 8.54], "L": "img/p06_T0_day.jpg", "R": "img/p06_T0_day_R.jpg"}, {"id": "p07", "name": "서재 침실 p07", "xy": [-4.39, 7.0], "L": "img/p07_T0_day.jpg", "R": "img/p07_T0_day_R.jpg"}, {"id": "p08", "name": "아이방 p08", "xy": [-3.32, 1.99], "L": "img/p08_T0_day.jpg", "R": "img/p08_T0_day_R.jpg"}, {"id": "p09", "name": "거실 p09", "xy": [-7.07, 4.54], "L": "img/p09_T0_day.jpg", "R": "img/p09_T0_day_R.jpg"}, {"id": "p11", "name": "주방·식당 p11", "xy": [-9.24, 6.28], "L": "img/p11_T0_day.jpg", "R": "img/p11_T0_day_R.jpg"}, {"id": "p12", "name": "다용도실 p12", "xy": [-7.93, 8.42], "L": "img/p12_T0_day.jpg", "R": "img/p12_T0_day_R.jpg"}, {"id": "p13", "name": "안방 p13", "xy": [-10.61, 3.59], "L": "img/p13_T0_day.jpg", "R": "img/p13_T0_day_R.jpg"}, {"id": "p15", "name": "드레스룸 p15", "xy": [-10.81, 5.61], "L": "img/p15_T0_day.jpg", "R": "img/p15_T0_day_R.jpg"}, {"id": "p16", "name": "부부욕실 p16", "xy": [-11.03, 7.24], "L": "img/p16_T0_day.jpg", "R": "img/p16_T0_day_R.jpg"}];const $=s=>document.getElementById(s);
+function bind(i,o){const e=$(i),v=$(o);const f=()=>v.textContent=e.value;e.oninput=f;f();}
+bind("k1","v1");bind("k2","v2");bind("fv","v3");bind("ox","v4");bind("dpth","v5");bind("prj","v6");
+const cv=$("cv"),gl=cv.getContext("webgl",{antialias:false});
+const vs="attribute vec2 p;varying vec2 q;void main(){q=p;gl_Position=vec4(p,0.,1.);}";
+const fs=`precision highp float;varying vec2 q;uniform sampler2D T;uniform sampler2D T2;uniform sampler2D T3;uniform sampler2D TO;uniform float dp,pj;
+vec3 prj(vec2 q,float t,float asp,float z){vec2 v=q*vec2(t*asp,t)*z;float r=length(v);if(r<1e-5)return vec3(0.0,0.0,-1.0);float th=mix(atan(r),2.0*atan(r*0.5),pj);return vec3(v/r*sin(th),-cos(th));}uniform mat3 M;uniform float k1,k2,t,asp,ox,eye,cnt,fd,xf,zA,zB;uniform vec3 mk[6];uniform float pg[6];
+void main(){vec2 e=vec2(q.x,q.y);vec2 u=e;u.x-=ox*(eye>0.0?1.0:-1.0)*0.0;
+ vec2 p=e;float r2=dot(p,p);p*=1.0+k1*r2+k2*r2*r2;p.x+=ox*(eye>0.5?-1.0:1.0)*0.0;
+ vec3 d=M*prj(p,t,asp,1.0);
+ vec3 d2=M*prj(p,t,asp,zB);
+ vec3 d1=M*prj(p,t,asp,zA);
+ vec2 uv1=vec2(atan(d1.x,-d1.z)/6.2831853+0.5,asin(clamp(d1.y,-1.,1.))/3.1415927+0.5);vec4 ca=mix(texture2D(T,uv1),texture2D(TO,uv1),dp);
+ vec4 col=ca;
+ if(xf<1.0){vec4 cb=texture2D(T2,vec2(atan(d2.x,-d2.z)/6.2831853+0.5,asin(clamp(d2.y,-1.,1.))/3.1415927+0.5));col=mix(cb,ca,xf);}
+ vec3 dn=normalize(d);
+ for(int i=0;i<6;i++){if(float(i)<cnt){vec3 md=mk[i];float sc=length(md);md/=sc;float c=dot(dn,md);
+  if(c>0.2){vec3 u=normalize(cross(md,vec3(0.0,1.0,0.0)));vec3 v=cross(u,md);vec2 l=vec2(dot(dn,u),dot(dn,v))/c/sc;float rr=length(l);float R=0.2;
+   float disc=smoothstep(R,R-0.01,rr);float ring=disc-smoothstep(R-0.035,R-0.045,rr);float pp=min(pg[i],1.0);
+   col.rgb=mix(col.rgb,vec3(0.04),disc*0.62);
+   col.rgb=mix(col.rgb,vec3(1.0,0.86,0.55),disc*pp*0.45);
+   if(abs(l.x)<0.15&&abs(l.y)<0.15){vec2 tu=l/0.3+0.5;vec4 tx=texture2D(T3,vec2(tu.x,1.0-(float(i)+1.0-tu.y)/6.0));col.rgb=mix(col.rgb,tx.rgb,tx.a);}
+   col.rgb=mix(col.rgb,pg[i]>1.2?vec3(1.0):vec3(1.0,0.86,0.55),ring*0.95);}}}
+ float rd=length(e*vec2(asp,1.0));col.rgb=mix(col.rgb,vec3(1.0),smoothstep(0.028,0.02,rd)*0.9);
+ gl_FragColor=vec4(col.rgb*(1.0-fd),1.0);}`;
+function sh(t,s){const x=gl.createShader(t);gl.shaderSource(x,s);gl.compileShader(x);if(!gl.getShaderParameter(x,gl.COMPILE_STATUS))throw new Error(gl.getShaderInfoLog(x));return x;}
+const pr=gl.createProgram();gl.attachShader(pr,sh(gl.VERTEX_SHADER,vs));gl.attachShader(pr,sh(gl.FRAGMENT_SHADER,fs));gl.linkProgram(pr);gl.useProgram(pr);
+gl.bindBuffer(gl.ARRAY_BUFFER,gl.createBuffer());gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_DRAW);
+const lp=gl.getAttribLocation(pr,"p");gl.enableVertexAttribArray(lp);gl.vertexAttribPointer(lp,2,gl.FLOAT,false,0,0);
+const U={};["T","T3","TO","dp","pj","M","k1","k2","t","asp","ox","eye","cnt","mk","pg","fd","T2","xf","zA","zB"].forEach(n=>U[n]=gl.getUniformLocation(pr,n));
+function img(src){return new Promise(ok=>{const i=new Image();i.onload=()=>ok(i);i.onerror=()=>ok(null);i.src=src;});}
+function tex(i){const t=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,t);gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,true);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,i);
+ gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.REPEAT);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);return t;}
+const AT=document.createElement("canvas");AT.width=128;AT.height=768;const atx=AT.getContext("2d");const atT=gl.createTexture();let atKey="";
+function shortName(n){n=n.replace(/ p[0-9]+/,"");return n.split("·");}
+function atlasUpdate(idx){const key=idx.join(",");if(key===atKey)return;atKey=key;atx.clearRect(0,0,128,768);atx.textAlign="center";atx.textBaseline="middle";
+ idx.forEach((pi,k)=>{const ln=shortName(PTS[pi].name);const fs=ln.length>1?34:(ln[0].length>3?34:40);atx.font="bold "+fs+"px sans-serif";ln.forEach((t,j)=>{const y=k*128+64+(j-(ln.length-1)/2)*(fs+4);atx.lineWidth=5;atx.strokeStyle="rgba(0,0,0,0.9)";atx.strokeText(t,64,y);atx.fillStyle="#fff";atx.fillText(t,64,y);});});
+ gl.activeTexture(gl.TEXTURE2);gl.bindTexture(gl.TEXTURE_2D,atT);gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,true);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,AT);
+ gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);gl.activeTexture(gl.TEXTURE0);}
+let fadeV=0,cur=0,TL=null,TR=null,PL=null,PR=null,xf=1,busy=false;
+async function load(i){if(busy)return;busy=true;cur=(i+PTS.length)%PTS.length;const p=PTS[cur];setHud(p.name+" ("+(cur+1)+"/"+PTS.length+") v8");
+ const a=await img(p.L);const b=await img(p.R)||a;
+ if(PL){gl.deleteTexture(PL);if(PR&&PR!==PL)gl.deleteTexture(PR);}
+ PL=TL;PR=TR;TL=tex(a);TR=(b===a)?TL:tex(b);xf=PL?0:1;busy=false;}
+// 기기 방향 -> 회전행렬(W3C 방식)
+let ang={a:0,b:90,g:0},yawOff=0,have=false;
+let lastEv=0;
+window.addEventListener("deviceorientation",e=>{if(e.alpha==null)return;const now=performance.now();const dt=Math.max(0.004,Math.min(0.1,(now-lastEv)/1000));lastEv=now;
+ const dw=(x,y)=>{let d=x-y;while(d>180)d-=360;while(d<-180)d+=360;return d;};
+ if(!have){ang={a:e.alpha,b:e.beta,g:e.gamma};have=true;return;}
+ const da=dw(e.alpha,ang.a),db=e.beta-ang.b,dg=e.gamma-ang.g;const sp=Math.hypot(da,db,dg)/dt;
+ const fc=2+0.08*sp,tau=1/(2*Math.PI*fc),k=1/(1+tau/dt);
+ ang={a:(ang.a+da*k+360)%360,b:ang.b+db*k,g:ang.g+dg*k};});
+const D=Math.PI/180;
+function mul(a,b){const r=[];for(let i=0;i<3;i++)for(let j=0;j<3;j++){r[j*3+i]=a[i]*b[j*3]+a[3+i]*b[j*3+1]+a[6+i]*b[j*3+2];}return r;}
+function rx(x){const c=Math.cos(x),s=Math.sin(x);return [1,0,0,0,c,s,0,-s,c];}
+function ry(x){const c=Math.cos(x),s=Math.sin(x);return [c,0,-s,0,1,0,s,0,c];}
+function rz(x){const c=Math.cos(x),s=Math.sin(x);return [c,s,0,-s,c,0,0,0,1];}
+let portrait=false;
+let SQ=null,QT=null,QS=null;
+function quatBase(){const q=QS,x=q[0],y=q[1],z=q[2],w=q[3];
+ const Re=[1-2*(y*y+z*z),2*(x*y+z*w),2*(x*z-y*w),2*(x*y-z*w),1-2*(x*x+z*z),2*(y*z+x*w),2*(x*z+y*w),2*(y*z-x*w),1-2*(x*x+y*y)];
+ return mul([1,0,0,0,0,-1,0,1,0],mul(Re,[1,0,0,0,0,1,0,-1,0]));}
+let qLast=0;
+function quatStep(){if(!QT)return;const now=performance.now();const dt=Math.max(0.004,Math.min(0.1,(now-qLast)/1000));qLast=now;
+ if(!QS){QS=QT.slice();SQ=true;have=true;return;}
+ let d=QS[0]*QT[0]+QS[1]*QT[1]+QS[2]*QT[2]+QS[3]*QT[3];const sg=d<0?-1:1;
+ const ang2=2*Math.acos(Math.min(1,Math.abs(d)))/D;const sp=ang2/dt;const fc=7+0.1*sp;const k=1-Math.exp(-2*Math.PI*fc*dt);
+ const q=[0,0,0,0];for(let i=0;i<4;i++)q[i]=QS[i]+(sg*QT[i]-QS[i])*k;const n=Math.hypot(q[0],q[1],q[2],q[3]);QS=q.map(v=>v/n);}
+async function startSensor(){try{if(!window.RelativeOrientationSensor)return;
+ for(const n of["accelerometer","gyroscope"]){try{const r=await navigator.permissions.query({name:n});if(r.state==="denied")return;}catch(e){}}
+ const sn=new RelativeOrientationSensor({frequency:60});sn.addEventListener("reading",()=>{QT=sn.quaternion;});sn.addEventListener("error",()=>{});sn.start();}catch(e){}}
+function camMat(){let o=(screen.orientation&&screen.orientation.angle||window.orientation||0)*D;if(portrait)o=($("fl").checked?-1:1)*Math.PI/2;
+ let m=SQ?quatBase():mul(ry(ang.a*D),mul(rx(ang.b*D),rz(-ang.g*D)));m=mul(m,rx(-Math.PI/2));m=mul(m,rz(-o));return m;}
+function fwdAz(m){const f=[-m[6],-m[7],-m[8]];return Math.atan2(f[0],-f[2]);}
+function setHud(x){} /* 사장 2026-10-29: 화면 글자 삭제(원 안 방 이름만 유지) */
+let lastM=null,hintAt=0,hintOn=false;
+function headingOf(m){const f=[-m[6],-m[7],-m[8]];return Math.atan2(f[0],-f[2]);}
+function bestAhead(m){const c=PTS[cur];if(!c||!c.xy)return null;const want=headingOf(m);let best=null,bs=1e9;
+ PTS.forEach((p,i)=>{if(i===cur)return;const dx=p.xy[0]-c.xy[0],dy=p.xy[1]-c.xy[1],dd=Math.hypot(dx,dy);if(dd>14)return;
+  let a=Math.atan2(dx,dy)-want;a=Math.abs(Math.atan2(Math.sin(a),Math.cos(a)));if(a>1.05)return;const sc=a*3+dd*0.2;if(sc<bs){bs=sc;best={i,p,dd,a};}});return best;}
+function goForward(){if(!lastM)return;const b=bestAhead(lastM);if(!b){setHud("그쪽으로는 갈 수 없어요");$("hud").style.opacity=1;setTimeout(()=>{$("hud").style.opacity=0;},1500);return;}load(b.i);}
+function hintText(m){const c=PTS[cur];if(!c)return"";const want=headingOf(m);const L=[];
+ PTS.forEach((p,i)=>{if(i===cur)return;const dx=p.xy[0]-c.xy[0],dy=p.xy[1]-c.xy[1],dd=Math.hypot(dx,dy);let a=Math.atan2(dx,dy)-want;a=Math.atan2(Math.sin(a),Math.cos(a));
+  const deg=Math.round(a*180/Math.PI),ar=Math.abs(deg)<=25?"▲":(Math.abs(deg)>=155?"▼":(deg>0?"▶":"◀"));L.push({t:ar+" "+p.name.replace(/ p[0-9]+/,"")+" "+dd.toFixed(1)+"m",a:Math.abs(deg)});});
+ L.sort((x,y)=>x.a-y.a);const b=bestAhead(m);return ""+L.map(x=>x.t).join("  ");}
+let nextAt=0,last=0,yd=0,pd=0,nodMsg="";const DW=1.5;let dwell=[0,0,0,0,0,0],mkIdx=[];
+let lastMk=[],mkSz=[1,1,1,1,1,1],aimKey="";
+function gaze(m,dt){const c=PTS[cur];const mk=[],pg=[];mkIdx=[];if(!c||!c.xy)return{mk,pg};const f=[-m[6],-m[7],-m[8]];
+ const L=[];PTS.forEach((p,i)=>{if(i===cur)return;const dx=p.xy[0]-c.xy[0],dy=p.xy[1]-c.xy[1];L.push({i,az:Math.atan2(dx,dy),dd:Math.hypot(dx,dy)});});L.sort((x,y)=>x.dd-y.dd);L.length=Math.min(L.length,6);
+ L.sort((x,y)=>x.az-y.az);
+ L.forEach((o,k)=>{const el=-Math.atan2(1.3,o.dd),sz=Math.max(0.75,Math.min(1,3.2/o.dd));o.sz=sz;mk.push(sz*Math.sin(o.az)*Math.cos(el),sz*Math.sin(el),-sz*Math.cos(o.az)*Math.cos(el));mkIdx.push(o.i);mkSz[mkIdx.length-1]=o.sz;});
+ for(let k=0;k<mkIdx.length;k++){const v=[mk[k*3]/mkSz[k],mk[k*3+1]/mkSz[k],mk[k*3+2]/mkSz[k]];const an=Math.acos(Math.max(-1,Math.min(1,f[0]*v[0]+f[1]*v[1]+f[2]*v[2])));
+  if(an<0.17*Math.max(mkSz[k],0.65)&&!busy)dwell[k]+=dt;else dwell[k]=Math.max(0,dwell[k]-dt*2);pg.push(Math.min(1,dwell[k]/DW));
+  if(dwell[k]>=DW){dwell=[0,0,0,0,0,0];load(mkIdx[k]);break;}}
+ {let bk=-1,bb=0.5;for(let k=0;k<mkIdx.length;k++){const sz=mkSz[k]||1;const v=[mk[k*3]/sz,mk[k*3+1]/sz,mk[k*3+2]/sz];const an=Math.acos(Math.max(-1,Math.min(1,f[0]*v[0]+f[1]*v[1]+f[2]*v[2])));if(an<bb){bb=an;bk=k;}}
+  const key=bk<0?"":PTS[mkIdx[bk]].name;if(key!==aimKey){aimKey=key;$("hud").style.opacity=1;const here=PTS[cur].name.replace(/ p[0-9]+/,"");setHud(bk<0?here+" ("+(cur+1)+"/"+PTS.length+")":"v9 → "+key.replace(/ p[0-9]+/,"")+"\n(지금 "+here+")");}}
+ atlasUpdate(mkIdx);lastMk=mk;return{mk,pg};}
+let tiltT=0,tiltDir=0,tiltCool=0;
+function tilt(m,dt){const r=m[1];tiltCool=Math.max(0,tiltCool-dt);const d=r<-0.34?1:(r>0.34?-1:0);
+ if(d===0||busy||tiltCool>0){if(Math.abs(r)<0.2)tiltCool=Math.max(0,tiltCool);tiltT=0;tiltDir=0;return;}
+ if(d!==tiltDir){tiltDir=d;tiltT=0;}tiltT+=dt;if(tiltT>0.6){tiltT=0;tiltDir=0;tiltCool=1.6;nextPt(d);}}
+function nextPt(d){if(busy)return;load(cur+(d||1));}
+function tapGo(){if(busy||!lastM)return;const f=[-lastM[6],-lastM[7],-lastM[8]];let best=-1,bd=0.5;
+ for(let k=0;k<mkIdx.length;k++){const v=[lastMk[k*3]/mkSz[k],lastMk[k*3+1]/mkSz[k],lastMk[k*3+2]/mkSz[k]];const an=Math.acos(Math.max(-1,Math.min(1,f[0]*v[0]+f[1]*v[1]+f[2]*v[2])));if(an<bd){bd=an;best=k;}}
+ if(best>=0)load(mkIdx[best]);else nextPt(1);}
+addEventListener("keydown",e=>{const k=e.key;if(["Enter"," ","ArrowRight","ArrowDown","PageDown","MediaTrackNext","AudioVolumeUp"].includes(k)){e.preventDefault();nextPt(1);}
+ else if(["ArrowLeft","ArrowUp","PageUp","MediaTrackPrevious","AudioVolumeDown"].includes(k)){e.preventDefault();nextPt(-1);}});
+let gpPrev=false;function pollGp(){const gs=navigator.getGamepads?navigator.getGamepads():[];let on=false;for(const g of gs){if(g&&g.buttons.some(b=>b.pressed))on=true;}if(on&&!gpPrev)nextPt(1);gpPrev=on;}
+function frame(now){requestAnimationFrame(frame);pollGp();const dt=Math.min(.1,(now-last)/1000);last=now;if(!TL)return;
+ portrait=innerHeight>innerWidth;const dpr=Math.min(devicePixelRatio||1,1.5);
+ const cw=portrait?innerHeight:innerWidth,ch=portrait?innerWidth:innerHeight,W=Math.round(cw*dpr),H=Math.round(ch*dpr);
+ if(cv.width!==W||cv.height!==H){cv.width=W;cv.height=H;}
+ const st=$("stage").style;st.width=cw+"px";st.height=ch+"px";
+ if(portrait){const fl=$("fl").checked;st.top=fl?innerHeight+"px":"0px";st.left=fl?"0px":innerWidth+"px";st.transformOrigin="top left";st.transform=fl?"rotate(-90deg)":"rotate(90deg)";}
+ else{st.top="0px";st.left="0px";st.transform="none";}
+ quatStep();let m=camMat();m=mul(mul(ry(yawOff+yd),m),rx(pd));
+ lastM=m;tilt(m,dt);if(hintOn&&!aimKey&&performance.now()>hintAt){hintAt=performance.now()+300;setHud(PTS[cur].name+"\n"+(nodMsg?nodMsg+"\n":"")+hintText(m));}gl.uniformMatrix3fv(U.M,false,new Float32Array(m));gl.uniform1f(U.k1,+$("k1").value);gl.uniform1f(U.k2,+$("k2").value);
+ if(xf<1){xf=Math.min(1,xf+dt/0.9);if(xf>=1&&PL){gl.deleteTexture(PL);if(PR&&PR!==PL)gl.deleteTexture(PR);PL=PR=null;}}const sm=xf*xf*(3-2*xf);gl.uniform1f(U.fd,0);gl.uniform1f(U.xf,PL?sm:1);gl.uniform1f(U.zA,1-0.14*(1-sm));gl.uniform1f(U.zB,1-0.22*sm);const G=gaze(m,dt);const n=Math.min(6,G.pg.length);const mkA=new Float32Array(18),pgA=new Float32Array(6);for(let k=0;k<n;k++){mkA.set(G.mk.slice(k*3,k*3+3),k*3);pgA[k]=G.pg[k];}gl.uniform1f(U.cnt,n);gl.uniform3fv(U.mk,mkA);gl.uniform1fv(U.pg,pgA);gl.uniform1f(U.t,Math.tan(+$("fv").value*D/2));gl.uniform1f(U.asp,(W/2)/H);gl.uniform1i(U.T,0);gl.uniform1i(U.T2,1);gl.uniform1i(U.T3,2);gl.uniform1i(U.TO,3);gl.uniform1f(U.pj,+$("prj").value);{const b0=(1-(+$("dpth").value))/2,rf=Math.min(1,Math.max(0,(Math.abs(m[1])-0.12)/0.25));gl.uniform1f(U.dp,b0+(0.5-b0)*rf);}
+ const sx=Math.round(+$("ox").value*W/4);$("h1").style.transform="translateX("+sx+"px)";$("h2").style.transform="translateX("+(-sx)+"px)";
+ gl.enable(gl.SCISSOR_TEST);
+ for(let e=0;e<2;e++){const x0=e*W/2+(e?-sx:sx);gl.viewport(Math.round(x0),0,W/2,H);gl.scissor(e*W/2,0,W/2,H);gl.clearColor(0,0,0,1);gl.clear(gl.COLOR_BUFFER_BIT);
+  gl.activeTexture(gl.TEXTURE3);gl.bindTexture(gl.TEXTURE_2D,e?TL:TR);gl.activeTexture(gl.TEXTURE1);gl.bindTexture(gl.TEXTURE_2D,PL?(e?PR:PL):(e?TR:TL));gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,e?TR:TL);gl.uniform1f(U.eye,0);gl.drawArrays(gl.TRIANGLE_STRIP,0,4);}
+ }
+function recenter(){const m=camMat();yawOff=-fwdAz(m);}
+$("go").onclick=async()=>{startSensor();try{if(typeof DeviceOrientationEvent!=="undefined"&&DeviceOrientationEvent.requestPermission){await DeviceOrientationEvent.requestPermission();}}catch(e){}
+ try{await document.documentElement.requestFullscreen();}catch(e){}try{await screen.orientation.lock("landscape");}catch(e){}
+ $("setup").style.display="none";$("stage").style.display="block";await load(0);setTimeout(recenter,400);
+ let p0=null;
+ cv.addEventListener("pointerdown",e=>{p0={x:e.clientX,y:e.clientY,t:performance.now(),mx:0};cv.setPointerCapture(e.pointerId);});
+ cv.addEventListener("pointermove",e=>{if(!p0)return;let dx=e.clientX-p0.x,dy=e.clientY-p0.y;p0.x=e.clientX;p0.y=e.clientY;p0.mx+=Math.abs(dx)+Math.abs(dy);
+  let cx=dx,cy=dy;if(portrait){const f=$("fl").checked?-1:1;cx=f*dy;cy=-f*dx;}
+  yd-=cx*0.004;pd=Math.max(-1.2,Math.min(1.2,pd+cy*0.004));});
+ cv.addEventListener("pointerup",e=>{if(p0&&p0.mx<12&&performance.now()-p0.t<500)tapGo();p0=null;});
+ setTimeout(()=>{$("hud").style.opacity=1;setHud(have?"자이로 연결됨 · 머리를 오른쪽으로 기울이면 다음 지점, 왼쪽으로 기울이면 이전 지점 (0.6초 유지)":"자이로 신호 없음 → 화면을 드래그해서 둘러보세요 (https 주소로 접속하면 자이로가 켜집니다)");},1500);
+ setTimeout(()=>{hintOn=true;$("hud").style.opacity=1;},7000);requestAnimationFrame(frame);};
+</script></body></html>
