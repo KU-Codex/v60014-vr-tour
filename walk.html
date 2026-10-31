@@ -1,0 +1,25 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>케이디자인랩 360 투어</title>
+<style>html,body{margin:0;height:100%;background:#000;color:#eee;font-family:system-ui,sans-serif;overflow:hidden}canvas{position:fixed;inset:0;width:100%;height:100%;touch-action:none}
+#bar{position:fixed;left:0;right:0;bottom:0;padding:10px 12px calc(10px + env(safe-area-inset-bottom));background:linear-gradient(transparent,#000c);display:flex;gap:8px;align-items:center}
+#bar button,#bar select{font-size:16px;padding:10px 14px;border-radius:10px;border:0;background:#c9a063;color:#111}#bar select{flex:1;min-width:0;background:#222;color:#eee}
+#t{position:fixed;top:0;left:0;right:0;padding:10px 14px;font-size:15px;background:linear-gradient(#000a,transparent)}</style></head><body>
+<canvas id="cv"></canvas><div id="t"></div><div id="bar"><button id="pv">◀</button><select id="sel"></select><button id="nx">▶</button><button id="au">자동</button></div>
+<script>const P=[{"n": "현관", "i": "img/p01_T0_day.jpg"}, {"n": "복도", "i": "img/p02_T0_day.jpg"}, {"n": "복도 끝", "i": "img/p03_T0_day.jpg"}, {"n": "거실 입구", "i": "img/p04_T0_day.jpg"}, {"n": "공용욕실", "i": "img/p05_T0_day.jpg"}, {"n": "실외기실", "i": "img/p06_T0_day.jpg"}, {"n": "서재 침실", "i": "img/p07_T0_day.jpg"}, {"n": "아이방", "i": "img/p08_T0_day.jpg"}, {"n": "거실", "i": "img/p09_T0_day.jpg"}, {"n": "주방·식당", "i": "img/p11_T0_day.jpg"}, {"n": "다용도실", "i": "img/p12_T0_day.jpg"}, {"n": "안방", "i": "img/p13_T0_day.jpg"}, {"n": "드레스룸", "i": "img/p15_T0_day.jpg"}, {"n": "부부욕실", "i": "img/p16_T0_day.jpg"}];const $=i=>document.getElementById(i);const cv=$("cv"),gl=cv.getContext("webgl");
+const vs="attribute vec2 p;varying vec2 q;void main(){q=p;gl_Position=vec4(p,0.,1.);}";
+const fs="precision highp float;varying vec2 q;uniform sampler2D T,T2;uniform float yaw,pit,fov,asp,mx;void main(){vec3 d=normalize(vec3(q.x*asp*fov,q.y*fov,-1.));float cp=cos(pit),sp=sin(pit);d=vec3(d.x,d.y*cp-d.z*sp,d.y*sp+d.z*cp);float cy=cos(yaw),sy=sin(yaw);d=vec3(d.x*cy+d.z*sy,d.y,-d.x*sy+d.z*cy);vec2 u=vec2(atan(d.x,-d.z)/6.2831853+0.5,acos(clamp(d.y,-1.,1.))/3.1415927);gl_FragColor=mix(texture2D(T2,u),texture2D(T,u),mx);}";
+function sh(t,s){const x=gl.createShader(t);gl.shaderSource(x,s);gl.compileShader(x);return x}const pg=gl.createProgram();gl.attachShader(pg,sh(gl.VERTEX_SHADER,vs));gl.attachShader(pg,sh(gl.FRAGMENT_SHADER,fs));gl.linkProgram(pg);gl.useProgram(pg);
+const b=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,b);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_DRAW);const lp=gl.getAttribLocation(pg,"p");gl.enableVertexAttribArray(lp);gl.vertexAttribPointer(lp,2,gl.FLOAT,false,0,0);
+const U=n=>gl.getUniformLocation(pg,n);gl.uniform1i(U("T"),0);gl.uniform1i(U("T2"),1);
+function mk(u){const t=gl.createTexture();gl.activeTexture(gl.TEXTURE0+u);gl.bindTexture(gl.TEXTURE_2D,t);[[gl.TEXTURE_WRAP_S,gl.REPEAT],[gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE],[gl.TEXTURE_MIN_FILTER,gl.LINEAR],[gl.TEXTURE_MAG_FILTER,gl.LINEAR]].forEach(a=>gl.texParameteri(gl.TEXTURE_2D,a[0],a[1]));gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,1,1,0,gl.RGBA,gl.UNSIGNED_BYTE,new Uint8Array([0,0,0,255]));return t}
+let A=mk(0),B=mk(1),cur=0,yaw=0,pit=0,fov=0.84,mx=1,auto=false,busy=false;
+P.forEach((p,i)=>{const o=document.createElement("option");o.value=i;o.textContent=(i+1)+". "+p.n;$("sel").appendChild(o)});
+function go(i){i=(i+P.length)%P.length;if(busy)return;busy=true;const im=new Image();im.onload=()=>{const t=B;B=A;A=t; /* B=직전, A=새 이미지 */
+ gl.activeTexture(gl.TEXTURE1);gl.bindTexture(gl.TEXTURE_2D,B);gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,A);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,im);
+ cur=i;$("sel").value=i;$("t").textContent=(i+1)+" / "+P.length+"  "+P[i].n;const t0=performance.now();mx=0;(function f(){mx=Math.min(1,(performance.now()-t0)/600);if(mx<1)requestAnimationFrame(f);else busy=false})()};im.onerror=()=>busy=false;im.src=P[i].i}
+$("pv").onclick=()=>go(cur-1);$("nx").onclick=()=>go(cur+1);$("sel").onchange=e=>go(+e.target.value);
+$("au").onclick=()=>{auto=!auto;$("au").textContent=auto?"정지":"자동"};setInterval(()=>{if(auto)go(cur+1)},6000);
+let dr=null;cv.onpointerdown=e=>{dr=[e.clientX,e.clientY];cv.setPointerCapture(e.pointerId)};cv.onpointerup=()=>dr=null;
+cv.onpointermove=e=>{if(!dr)return;yaw-=(e.clientX-dr[0])*0.005*fov/0.84;pit=Math.max(-1.4,Math.min(1.4,pit-(e.clientY-dr[1])*0.005*fov/0.84));dr=[e.clientX,e.clientY]};
+cv.onwheel=e=>{fov=Math.max(0.3,Math.min(2,fov*(e.deltaY>0?1.08:0.92)))};
+function draw(){const w=innerWidth,h=innerHeight,d=devicePixelRatio||1;if(cv.width!=Math.round(w*d)){cv.width=Math.round(w*d);cv.height=Math.round(h*d)}gl.viewport(0,0,cv.width,cv.height);gl.uniform1f(U("yaw"),yaw);gl.uniform1f(U("pit"),pit);gl.uniform1f(U("fov"),fov);gl.uniform1f(U("asp"),w/h);gl.uniform1f(U("mx"),mx);gl.drawArrays(gl.TRIANGLE_STRIP,0,4);requestAnimationFrame(draw)}
+go(0);draw();</script></body></html>
