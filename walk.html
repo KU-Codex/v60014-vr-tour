@@ -41,6 +41,7 @@ body{font-family:system-ui,-apple-system,"Apple SD Gothic Neo","Malgun Gothic","
 #titlebox{padding:8px 12px;pointer-events:none;min-width:0}
 #ttl{font-size:12px;color:var(--ui-sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #pname{font-size:17px;font-weight:700;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#bau.on{background:rgba(201,160,99,.85)}
 #tools{display:flex;flex-direction:column;gap:8px;pointer-events:auto}
 .tbtn{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px;line-height:1;color:var(--ui-fg);cursor:pointer;padding:0;font-family:inherit}
 .tbtn:active{background:var(--ui-bg-hi)}
@@ -96,6 +97,7 @@ body.fatal #dpad,body.fatal #mini,body.fatal #hint,body.fatal #tools,body.fatal 
     <div id="tools">
       <button id="bfs" class="tbtn chip" type="button" aria-label="전체화면" title="전체화면"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
       <button id="bzi" class="tbtn chip" type="button" aria-label="확대" title="확대"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+      <button id="bau" class="tbtn chip" type="button" aria-label="자동 둘러보기" title="자동 둘러보기"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5"/></svg></button>
       <button id="bzo" class="tbtn chip" type="button" aria-label="축소" title="축소"><svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button>
     </div>
   </div>
@@ -512,8 +514,24 @@ function start(){
   clearTimeout(wd);wd=setTimeout(function(){if(!firstLoaded){onViewerFail();}},15000);
   if(!mini.svg){buildMini();setInterval(updateCone,60);}
   refreshUi();
+  window.__viewer={get view(){return viewer;},walk:walk,go:go,pick:pickNeighbor,get mode(){return mode;},get loads(){return loadCount;},get cur(){return curId;},get yaw(){return viewer.getYaw();},
+    setYaw:function(y){viewer.setYaw(y,0);},get locked(){return locked;},get hfov(){return viewer.getHfov();},P:P};
 }
 prepareImages().then(start,function(e){window.__prepErr=String(e&&e.message||e);onViewerFail();});
+})();
+
+/* V60014 자동 둘러보기: 수평 회전만, 초당 6도 일정 속도, 시작 1.5초 가속·정지 0.6초 감속, 시선 높이(pitch) 고정, 사용자 조작·이동 시 즉시 정지 */
+(function(){var SP=6,UP=1.5,DN=0.6,on=false,v=0,t0=0,tl=0,stopAt=0,p0=0,b=document.getElementById('bau');
+ var timer=0;function tick(){var ts=performance.now();if(!on&&v<=0.01){v=0;clearInterval(timer);timer=0;return;}var dt=Math.max(0,Math.min(0.05,(ts-tl)/1000));tl=ts;
+  if(on){v=SP*Math.min(1,(ts-t0)/1000/UP);}else{v=SP*Math.max(0,1-(ts-stopAt)/1000/DN);}
+  var vw=window.__viewer&&window.__viewer.view;if(vw){vw.setYaw(vw.getYaw()+v*dt,0);vw.setPitch(p0,0);}}
+ function start(){if(on)return;on=true;b.classList.add('on');var vw=window.__viewer.view;p0=vw.getPitch();t0=tl=performance.now();if(!timer)timer=setInterval(tick,16);}
+ function stop(){if(!on)return;on=false;b.classList.remove('on');stopAt=performance.now();}
+ b.addEventListener('click',function(e){e.stopPropagation();on?stop():start();});
+ ['pointerdown','wheel','keydown','touchstart'].forEach(function(n){document.getElementById('pano').addEventListener(n,stop,{passive:true});});
+ document.addEventListener('keydown',function(e){if(e.target!==b)stop();});
+ var dp=document.getElementById('dpad'),mn=document.getElementById('mini');[dp,mn].forEach(function(el){if(el)el.addEventListener('pointerdown',stop,{passive:true});});
+ window.__autoStop=stop;
 })();
 </script>
 </body>
