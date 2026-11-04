@@ -97,13 +97,14 @@ body.fatal #dpad,body.fatal #mini,body.fatal #hint,body.fatal #tools,body.fatal 
 #info .dl{display:flex;flex-direction:column;align-items:flex-start;gap:2px;width:100%;margin-top:8px;padding:12px 14px;border:1px solid var(--ui-line);border-radius:12px;background:rgba(255,255,255,.08);color:#fff;font-family:inherit;font-size:15px;text-align:left;cursor:pointer}
 #info .dl span{font-size:12px;color:var(--ui-sub)}#info .dl:active{background:rgba(124,196,255,.3)}
 </style>
-<style>#dpad,#mini,#bfs,#bau,#balt,#binfo,#bzo,#hint{display:none!important}.pnlm-hotspot-base,.pnlm-hotspot{display:none!important}</style></head>
+<style>body.collapsed #dpad,body.collapsed #mini,body.collapsed #bfs,body.collapsed #bau,body.collapsed #balt,body.collapsed #binfo,body.collapsed #bzo,body.collapsed #hint,body.collapsed .pnlm-hotspot-base,body.collapsed .pnlm-hotspot{display:none!important}body.collapsed #bcol svg{transform:rotate(180deg)}</style></head>
 <body>
 <div id="app">
   <div id="pano"></div>
   <div id="topbar">
     <div id="titlebox" class="chip"><div id="ttl"></div><div id="pname"></div></div>
     <div id="tools">
+      <button id="bcol" class="tbtn chip" type="button" aria-label="버튼 접기/펴기" title="버튼 접기/펴기"><svg viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></svg></button>
       <button id="bfs" class="tbtn chip" type="button" aria-label="전체화면" title="전체화면"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
       <button id="bzi" class="tbtn chip" type="button" aria-label="확대" title="확대"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
       <button id="bau" class="tbtn chip" type="button" aria-label="자동 둘러보기" title="자동 둘러보기"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5"/></svg></button>
@@ -286,7 +287,7 @@ elTitle.textContent=DATA.title||'';
 document.title=DATA.title||document.title;
 var isTouch=false;
 try{isTouch=window.matchMedia('(hover: none) and (pointer: coarse)').matches;}catch(e){}
-elHint.textContent='드래그로 둘러보기';
+elHint.textContent=isTouch?'드래그로 둘러보기, 아래 방향 버튼으로 걷기':'드래그로 둘러보기, W A S D로 걷기';
 setTimeout(function(){elHint.className='chip dim';},9000);
 
 function showErr(m){elErr.textContent=m;elErr.style.display='block';}
@@ -483,7 +484,6 @@ function refreshUi(){
 var KEYS={KeyW:0,ArrowUp:0,KeyD:90,ArrowRight:90,KeyS:180,ArrowDown:180,KeyA:270,ArrowLeft:270};
 var KEYCODE={87:0,38:0,68:90,39:90,83:180,40:180,65:270,37:270};
 document.addEventListener('keydown',function(e){
-  return;
   if(e.ctrlKey||e.metaKey||e.altKey){return;}
   var c=e.code, rel;
   if(c!==undefined&&c!==''&&KEYS.hasOwnProperty(c)){rel=KEYS[c];}
@@ -587,5 +587,5 @@ prepareImages().then(start,function(e){window.__prepErr=String(e&&e.message||e);
  window.__autoStop=stop;
 })();
 </script>
-</body>
+<script>(function(){var b=document.getElementById('bcol');b.addEventListener('click',function(){document.body.classList.toggle('collapsed');});document.addEventListener('keydown',function(e){if(document.body.classList.contains('collapsed')){e.stopImmediatePropagation();}},true);})();</script></body>
 </html>
