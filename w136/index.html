@@ -568,6 +568,7 @@ function start(){
   clearTimeout(wd);wd=setTimeout(function(){if(!firstLoaded){onViewerFail();}},15000);
   if(!mini.svg){buildMini();setInterval(updateCone,60);}
   refreshUi();
+  window.__viewer={get view(){return viewer;}};
 }
 prepareImages().then(start,function(e){window.__prepErr=String(e&&e.message||e);onViewerFail();});
 })();
